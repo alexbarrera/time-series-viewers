@@ -2,12 +2,24 @@ import os
 import sys
 import argparse
 import time
+import re
 import utils
 import constants
 from collections import defaultdict as dd
 from jinja2 import Environment, FileSystemLoader, escape
+import json
 
 EXEC_DIR = utils.module_path() + "/"
+
+
+def read_exons(exonsf):
+    res = {}
+    for l in exonsf:
+        chrom, strand, gene, exons = l.rstrip().split('\t')
+        if '(' in gene:  # TODO: temporary solution for current files -- REMOVE
+            gene = re.match(".*\((.*)\).*", gene).groups()[0]
+        res[gene] = {'chrom': chrom, 'strand': strand, 'exons': exons}
+    return res
 
 
 def read_mat(mat):
@@ -18,6 +30,7 @@ def read_mat(mat):
         fields[k] = v
     return fields
 
+
 def load_matrices(args):
     mats = dd(list)
     for mt in constants.PEAKVIEWER_MATRICES:
@@ -26,9 +39,13 @@ def load_matrices(args):
     return mats
 
 
-def render(args, matrices):
+def render(args, matrices, exons):
+
+    def to_json(value):
+        return escape(json.dumps(value))
+
     env = Environment(extensions=["jinja2.ext.do"], loader=FileSystemLoader(os.path.join(EXEC_DIR, "../templates/")))
-    env.filters.update({'debug': utils.debug})
+    env.filters.update({'to_json': to_json, 'debug': utils.debug})
     template_file_name = args['view'].replace("-", "_") + "_template.j2"
     sum_template = env.get_template(template_file_name)
 
@@ -46,12 +63,12 @@ def render(args, matrices):
             next_page = None
 
             subset_genes = genes[count_pages*constants.MAX_GENES: constants.MAX_GENES*(count_pages+1)]
-
-            name_page = "%06d_%s.html" % (count_pages, args['view'])
+            exons_subset = {k: exons[k] for k in exons.keys() if k in subset_genes}
+            name_page = "%03d_%s.html" % (count_pages, args['view'])
             if (count_pages+1)*constants.MAX_GENES < len(genes):
-                next_page = "%06d_%s.html" % (count_pages+1, args['view'])
+                next_page = "%03d_%s.html" % (count_pages+1, args['view'])
             if not count_pages == 0:
-                prev_page = "%06d_%s.html" % (count_pages-1, args['view'])
+                prev_page = "%03d_%s.html" % (count_pages-1, args['view'])
 
             full_path = "%s/%s" % (summaries_subfolder, name_page)
             output_file = open(full_path, 'w')
@@ -61,12 +78,16 @@ def render(args, matrices):
                     nextPage=next_page,
                     namePage=name_page,
                     matrices=matrices,
-                    genes=subset_genes
+                    genes=subset_genes,
+                    exons=exons_subset
+
                 )
             )
             count_pages += 1
 
     utils.copyanything(EXEC_DIR+"../static", args['outdir']+"static")
+    utils.copyanything(EXEC_DIR+"../GGR-Visual/client/modules", args['outdir']+"static/js/modules/")
+    utils.copyanything(EXEC_DIR+"../GGR-Visual/client/stylesheets", args['outdir']+"static/css/")
 
 
 def main():
@@ -111,10 +132,9 @@ def main():
                                    type=file,
                                    help='File containing a list of gene IDs to be plotted. ')
 
-    parser_peakviewer.add_argument('--exons', metavar='FACTOR_XX.matrix.tsv [FACTOR_YY.reads.tsv ...]',
+    parser_peakviewer.add_argument('exons',
                                    type=file,
-                                   nargs='*',
-                                   help='2 column tab-delimited file: 1st column, gene name; 2nd column reads.')
+                                   help='Column tab-delimited file: <chr>')
 
     # ChIP-seqs
     parser_peakviewer.add_argument('--tf-matrices', metavar='FACTOR_XX.matrix.tsv [FACTOR_YY.reads.tsv ...]',
@@ -148,23 +168,24 @@ def main():
     args = parser.parse_args()
 
     # Create output directory
-    outdir = args.outdir
-    if not outdir.endswith('/'):
-        outdir += '/'
-    utils.create_if_not_exists(outdir)
+    # outdir = args.outdir
+    if not args.outdir.endswith('/'):
+        args.outdir += '/'
+    utils.create_if_not_exists(args.outdir)
 
     # Create logging file
     loggerdir = args.logger
     if loggerdir is None:
-        loggerdir = outdir
+        loggerdir = args.outdir
     utils.create_if_not_exists(loggerdir)
 
     logger = utils.get_logger("%stime-series-viewers.log" % loggerdir, silent=args.silent)
     logger.info("Execution line: %s" % repr(args))
 
     if args.view == constants.VIEW_PEAKVIEWER:
+        exons = read_exons(args.exons)
         matrices = load_matrices(vars(args))
-        render(vars(args), matrices)
+        render(vars(args), matrices, exons)
         
 if __name__ == '__main__':
     # Time execution time

@@ -2,12 +2,20 @@
 {% block title %}LSV &Delta;&Psi; Gene Summary{% endblock %}
 
 {% block css %}
-<link rel="stylesheet" type="text/css" href="ggr-visual/client/stylesheets/ggr-visual.css" />
+<link rel="stylesheet" type="text/css" href="../static/css/ggr-visual.css" />
 {% endblock %}
 
 {% block js %}
-<script src="static/js/jquery-1.11.1.min.js" type="text/javascript"></script>
-<script src="static/js/application.js" type="text/javascript"></script>
+<script src="https://code.jquery.com/jquery-2.2.4.min.js"
+        integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
+<script src="../static/js/app.js" type="text/javascript"></script>
+<script src="../static/js/modules/peakviewerD3.js" type="text/javascript"></script>
+<script src="../static/js/modules/timesliderD3.js" type="text/javascript"></script>
+<script src="../static/js/modules/downloadSVG.js" type="text/javascript"></script>
+<script src="../static/js/modules/d3.legend.js" type="text/javascript"></script>
+<script src="../static/js/modules/utilsGGR.js" type="text/javascript"></script>
 
 {% endblock %}
 
@@ -17,7 +25,7 @@
 
 {% block content %}
     <div class="col-md-8 col-md-offset-4 col-lg-8 col-lg-offset-4 display_col">
-      <h4>Time nob | <button name="play-timeslider" id="play-timeslider">Play</button></h4>
+      <h4><button name="play-timeslider" id="play-timeslider">Play</button> Time Series Visualizations</h4>
         <div class="slider_container"></div>
         {#          TODO: Calculate window resolutions available from file data #}
         <div>
@@ -34,6 +42,7 @@
     </div>
 
     {% for gene in genes %}
+        <span class="gene_id" data-exons="{{ exons[gene] | to_json }}">{{ gene }}</span>
         {% for pk, pk_factors in matrices.iteritems() %}
             <div class="row-fluid display_col">
               <div class="span4">
@@ -41,17 +50,17 @@
               </div>
               <div class="span8">
                 <h4>{{ pk }}</h4>
-                <button type="button" class="download-{{ gene }}-{{ pk }}">Download</button>
-                <div class="{{ gene }}-{{ pk }}-container peak-viewer"
+                <button type="button" class="download-button">Download</button>
+                <div class="{{ gene | replace(".", "_") }}-{{ pk }}-container peak-viewer downloadable"
                      {%  for pk_factor in pk_factors.keys() %}
-                         data-{{ pk_factor }}="{{ pk_factors[pk_factor][gene] }}"
+                        data-{{ pk_factor }}="{{ pk_factors[pk_factor][gene] }}"
+                        data-{{ pk_factor }}name="{{ pk_factor }}"
                      {%- endfor %}
-                 >
-                 <span>{{ gene }}<span>
-                </div>
+                 ></div>
               </div>
             </div>
         {%- endfor %}
+        <span class="gene-separator"></span>
     {%- endfor %}
 
     {% if prevPage or nextPage %}
