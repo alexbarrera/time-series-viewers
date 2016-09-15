@@ -1,0 +1,68 @@
+{% extends "base_template.j2" %}
+{% block title %}LSV &Delta;&Psi; Gene Summary{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" type="text/css" href="ggr-visual/client/stylesheets/ggr-visual.css" />
+{% endblock %}
+
+{% block js %}
+<script src="static/js/jquery-1.11.1.min.js" type="text/javascript"></script>
+<script src="static/js/application.js" type="text/javascript"></script>
+
+{% endblock %}
+
+{% block header %}
+        {% if namePage %}Result page: {{ namePage }}{% endif %}
+{% endblock %}
+
+{% block content %}
+    <div class="col-md-8 col-md-offset-4 col-lg-8 col-lg-offset-4 display_col">
+      <h4>Time nob | <button name="play-timeslider" id="play-timeslider">Play</button></h4>
+        <div class="slider_container"></div>
+        {#          TODO: Calculate window resolutions available from file data #}
+        <div>
+            <label for="resolution">Window Len. / Resolution</label>
+            <select id="resolution">
+                <option value="5" selected>2 kb / 5 bp</option>
+                <option value="10">10 kb / 10 bp</option>
+                <option value="25">50 kb / 25 bp</option>
+                <option value="50">100 kb/ 50 bp</option>
+                <option value="100">200 kb / 100 bp</option>
+                <option value="250">500 kb / 250 bp</option>
+            </select>
+        </div>
+    </div>
+
+    {% for gene in genes %}
+        {% for pk, pk_factors in matrices.iteritems() %}
+            <div class="row-fluid display_col">
+              <div class="span4">
+{#                TODO: {{> histmodsSelected}}#}
+              </div>
+              <div class="span8">
+                <h4>{{ pk }}</h4>
+                <button type="button" class="download-{{ gene }}-{{ pk }}">Download</button>
+                <div class="{{ gene }}-{{ pk }}-container peak-viewer"
+                     {%  for pk_factor in pk_factors.keys() %}
+                         data-{{ pk_factor }}="{{ pk_factors[pk_factor][gene] }}"
+                     {%- endfor %}
+                 >
+                 <span>{{ gene }}<span>
+                </div>
+              </div>
+            </div>
+        {%- endfor %}
+    {%- endfor %}
+
+    {% if prevPage or nextPage %}
+        <fieldset class="section-border">
+            <legend>Summaries</legend>
+            {% if prevPage %}
+            <a href="{{ prevPage }}" class="prevPage">&#x276e; Previous</a>
+            {% endif %}
+            {% if nextPage %}
+            <a href="{{ nextPage }}" class="nextPage">Next &#x276f;</a>
+            {% endif %}
+        </fieldset>
+    {% endif %}
+{% endblock %}
