@@ -1,0 +1,3 @@
+[submodule "GGR-Visual"]
+	path = GGR-Visual
+	url = https://github.com/alexbarrera/GGR-Visual
