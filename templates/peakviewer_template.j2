@@ -44,7 +44,7 @@
               data-resolutions="{{ resolutions | to_json }}"
               data-timepoints="{{ timepoints | to_json }}"
         >
-            {{ gene }}
+            <h3>{{ gene }}</h3>
         </span>
         {% for pk, pk_factors in matrices.iteritems() %}
             <div class="row-fluid display_col">
@@ -58,7 +58,6 @@
                      {%  for pk_factor in pk_factors.keys() %}
                         data-{{ pk_factor }}="{{ pk_factors[pk_factor]['reads'][:][pk_factors[pk_factor]['genes'][:] == gene][0] | nparray_to_json }}"
                         data-{{ pk_factor }}name="{{ pk_factor }}"
-
                      {%- endfor %}
                  ></div>
               </div>

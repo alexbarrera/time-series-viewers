@@ -37,9 +37,7 @@ def load_matrices(args):
     res = []
     for mt in constants.PEAKVIEWER_MATRICES:
         if args[mt]:
-            factor_name = args["%s_names" % mt]
-            if not factor_name:
-                factor_name = [os.path.basename(factor_path.name).split('.')[0] for factor_path in args[mt]]
+            factor_name = [os.path.basename(factor_path.name).split('.')[0] for factor_path in args[mt]]
             mats[mt] = dict(zip(factor_name, [read_mat(fd) for fd in args[mt]]))
             res_factor = [list(mm[1]['resolutions']) for mm in mats[mt].items()]
             if res and set(res) != set(res_factor):

@@ -50,6 +50,7 @@ $(window).load(function() {
         peak_viewers.forEach(function(e, i){
             e.container(viewers_sel[i].getAttribute("class").split(" ").map(function(e){return "."+e}).join(""));
             e.resolutions_set(gene_data.resolutions);
+            e.timepoints(tps);
             e.nbins(e.data().elems[0]['reads'][0][0].length);
             e.render();
         });
@@ -74,7 +75,7 @@ $(window).load(function() {
         var res = parseInt(event.target.value);
         peak_viewers.forEach(function(e){
           e.resolution(res);
-          e.render()
+          e.render();
         });
     });
 
