@@ -3,6 +3,8 @@ import sys
 import argparse
 import time
 import re
+import h5py
+import simplejson
 import utils
 import constants
 from collections import defaultdict as dd
@@ -15,44 +17,54 @@ EXEC_DIR = utils.module_path() + "/"
 def read_exons(exonsf):
     res = {}
     for l in exonsf:
+        if l.startswith('#'): continue
         chrom, strand, gene, exons = l.rstrip().split('\t')
+        gene_name = None
         if '(' in gene:  # TODO: temporary solution for current files -- REMOVE
+            gene_name = gene.split('(')[0]
             gene = re.match(".*\((.*)\).*", gene).groups()[0]
-        res[gene] = {'chrom': chrom, 'strand': strand, 'exons': exons}
+        res[gene] = {'chrom': chrom, 'strand': strand, 'exons': exons, 'gene_name': gene_name}
     return res
 
 
 def read_mat(mat):
-    fields = {}
-    for l in mat:
-        if l.startswith('gene_id'): continue
-        k, v = l.rstrip().split()
-        fields[k] = v
-    return fields
+    return h5py.File(mat.name, 'r')
 
 
 def load_matrices(args):
+    """Load data from hdf5 files"""
     mats = dd(list)
+    res = []
     for mt in constants.PEAKVIEWER_MATRICES:
-        if mt in args:
-            mats[mt] = dict(zip(args["%s_names" % mt], [read_mat(fd) for fd in args[mt]]))
-    return mats
+        if args[mt]:
+            factor_name = args["%s_names" % mt]
+            if not factor_name:
+                factor_name = [os.path.basename(factor_path.name).split('.')[0] for factor_path in args[mt]]
+            mats[mt] = dict(zip(factor_name, [read_mat(fd) for fd in args[mt]]))
+            res_factor = [list(mm[1]['resolutions']) for mm in mats[mt].items()]
+            if res and set(res) != set(res_factor):
+                logger.error("")
+            res.extend(res_factor)
+    return mats, res[0]
 
 
-def render(args, matrices, exons):
+def render(args, matrices, exons, resolution, timepoints):
 
     def to_json(value):
         return escape(json.dumps(value))
 
+    def nparray_to_json(value):
+        return escape(simplejson.dumps(value.tolist()))
+
     env = Environment(extensions=["jinja2.ext.do"], loader=FileSystemLoader(os.path.join(EXEC_DIR, "../templates/")))
-    env.filters.update({'to_json': to_json, 'debug': utils.debug})
+    env.filters.update({'to_json': to_json, 'nparray_to_json': nparray_to_json, 'debug': utils.debug})
     template_file_name = args['view'].replace("-", "_") + "_template.j2"
     sum_template = env.get_template(template_file_name)
 
     if args['view'] == constants.VIEW_PEAKVIEWER:
         count_pages = 0
 
-        genes = [g.rstrip().split()[0].split(',')[0] for g in args['genes']]
+        genes = exons.keys()
 
         # Subfolder for summary pages
         summaries_subfolder = "%s/%s" % (args['outdir'], constants.GENES_SUBFOLDER)
@@ -79,8 +91,9 @@ def render(args, matrices, exons):
                     namePage=name_page,
                     matrices=matrices,
                     genes=subset_genes,
-                    exons=exons_subset
-
+                    exons=exons_subset,
+                    resolutions=resolution,
+                    timepoints=timepoints
                 )
             )
             count_pages += 1
@@ -128,37 +141,36 @@ def main():
     # Peak viewers
     parser_peakviewer = argparse.ArgumentParser(add_help=False)
 
-    parser_peakviewer.add_argument('genes',
-                                   type=file,
-                                   help='File containing a list of gene IDs to be plotted. ')
+    # parser_peakviewer.add_argument('genes',
+    #                                type=file,
+    #                                help='File containing a list of gene IDs to be plotted. ')
 
     parser_peakviewer.add_argument('exons',
                                    type=file,
-                                   help='Column tab-delimited file: <chr>')
+                                   help='Column tab-delimited file: <chrom> <strand> <gene> <exons>')
+
+    # TODO: extract the timepoints from HDF5 files (first I have to add them.., this is it for now)
+    parser_peakviewer.add_argument('--timepoints',
+                                   type=float, nargs='+', default=[0],
+                                   help='Time points in hours (0 --> 0hs, 0.5 --> 30min, etc.')
 
     # ChIP-seqs
-    parser_peakviewer.add_argument('--tf-matrices', metavar='FACTOR_XX.matrix.tsv [FACTOR_YY.reads.tsv ...]',
+    parser_peakviewer.add_argument('--tfs', metavar='FACTOR_XX.h5 [FACTOR_YY.h5...]',
                                    type=file,
                                    nargs='*',
                                    help='2 column tab-delimited file: 1st column, gene name; 2nd column reads.')
-    parser_peakviewer.add_argument('--tf-matrices-names', metavar='FACTOR_XX [FACTOR_YY ...]',
-                                   type=str, nargs='*',
-                                   help='ChIP-seq sample names')
 
     # Chromatin seqs (Histone mods., Chromatin
-    parser_peakviewer.add_argument('--histmod-matrices', metavar='HIST_MOD_XX.matrix.tsv [HIST_MOD_YY.matrix.tsv ...]',
+    parser_peakviewer.add_argument('--histmods', metavar='HIST_MOD_XX.h5 [HIST_MOD_YY.h5 ...]',
                                    type=file,
                                    nargs='*',
                                    help='2 column tab-delimited file: 1st column, gene name; 2nd column reads.')
-    parser_peakviewer.add_argument('--histmod-matrices-names', metavar='HIST_MOD_XX [HIST_MOD_YY ...]',
-                                   type=str, nargs='*',
-                                   help='Histone modification names')
 
     # # DNaseI-seqs
-    # parser_peakviewer.add_argument('--dnase-matrix', metavar='dnaseI.reads.tsv',
-    #                                type=file,
-    #                                nargs=1,
-    #                                help='2 column tab-delimited file: 1st column, gene name; 2nd column reads.')
+    parser_peakviewer.add_argument('--dnase-matrix', metavar='dnaseI.reads.tsv',
+                                   type=file,
+                                   nargs=1,
+                                   help='2 column tab-delimited file: 1st column, gene name; 2nd column reads.')
 
     subparsers.add_parser(constants.VIEW_PEAKVIEWER,
                           help="Peak viewers for time series data",
@@ -166,6 +178,10 @@ def main():
 
     # Parse input
     args = parser.parse_args()
+
+    if not args.tfs and not args.histmods:
+        print "ERROR :: No matrix input specified"
+        sys.exit(1)
 
     # Create output directory
     # outdir = args.outdir
@@ -184,9 +200,15 @@ def main():
 
     if args.view == constants.VIEW_PEAKVIEWER:
         exons = read_exons(args.exons)
-        matrices = load_matrices(vars(args))
-        render(vars(args), matrices, exons)
-        
+        matrices = None
+        try:
+            matrices, res = load_matrices(vars(args))
+            render(vars(args), matrices, exons, res, args.timepoints)
+        finally:
+            if matrices:
+                [mm.close() for m in matrices.values() for mm in m.values()]
+
+
 if __name__ == '__main__':
     # Time execution time
     start_time = time.time()

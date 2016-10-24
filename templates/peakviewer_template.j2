@@ -31,18 +31,21 @@
         <div>
             <label for="resolution">Window Len. / Resolution</label>
             <select id="resolution">
-                <option value="5" selected>2 kb / 5 bp</option>
-                <option value="10">10 kb / 10 bp</option>
-                <option value="25">50 kb / 25 bp</option>
-                <option value="50">100 kb/ 50 bp</option>
-                <option value="100">200 kb / 100 bp</option>
-                <option value="250">500 kb / 250 bp</option>
+                {% for res in resolutions %}
+                    <option value="{{ res }}" {% if loop.first %}selected{% endif %}>{{ res*2 }} kb / {{ res }} bp</option>
+                {% endfor %}
             </select>
         </div>
     </div>
 
     {% for gene in genes %}
-        <span class="gene_id" data-exons="{{ exons[gene] | to_json }}">{{ gene }}</span>
+        <span class="gene_id"
+              data-exons="{{ exons[gene] | to_json }}"
+              data-resolutions="{{ resolutions | to_json }}"
+              data-timepoints="{{ timepoints | to_json }}"
+        >
+            {{ gene }}
+        </span>
         {% for pk, pk_factors in matrices.iteritems() %}
             <div class="row-fluid display_col">
               <div class="span4">
@@ -53,8 +56,9 @@
                 <button type="button" class="download-button">Download</button>
                 <div class="{{ gene | replace(".", "_") }}-{{ pk }}-container peak-viewer downloadable"
                      {%  for pk_factor in pk_factors.keys() %}
-                        data-{{ pk_factor }}="{{ pk_factors[pk_factor][gene] }}"
+                        data-{{ pk_factor }}="{{ pk_factors[pk_factor]['reads'][:][pk_factors[pk_factor]['genes'][:] == gene][0] | nparray_to_json }}"
                         data-{{ pk_factor }}name="{{ pk_factor }}"
+
                      {%- endfor %}
                  ></div>
               </div>
